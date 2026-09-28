@@ -64,6 +64,8 @@ export interface UserProfile {
   isVerified: boolean;
   drivingLicenseVerified: boolean;
   defaultRole: 'rider' | 'passenger';
+  isRoleLocked?: boolean;
+  roleLockedReason?: string;
   vehicle?: {
     type: VehicleType;
     model: string;

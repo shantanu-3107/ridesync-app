@@ -24,7 +24,8 @@ import {
   Send,
   Loader2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Lock
 } from 'lucide-react';
 
 const AVATAR_PRESETS = [
@@ -49,6 +50,7 @@ interface UserProfileDrawerProps {
   currentTheme: AppTheme;
   onSelectTheme: (theme: AppTheme) => void;
   onResetData?: () => void;
+  onOpenAuthModal?: () => void;
 }
 
 export const UserProfileDrawer: React.FC<UserProfileDrawerProps> = ({
@@ -62,6 +64,7 @@ export const UserProfileDrawer: React.FC<UserProfileDrawerProps> = ({
   currentTheme,
   onSelectTheme,
   onResetData,
+  onOpenAuthModal,
 }) => {
   if (!isOpen) return null;
 
@@ -456,36 +459,104 @@ export const UserProfileDrawer: React.FC<UserProfileDrawerProps> = ({
 
                 {isSignedIn ? (
                   <div className="space-y-3 pt-3 border-t border-white/10">
-                    <span className="text-xs text-white/70 block">Switch Operating Role:</span>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => {
-                          onUpdateUser({ ...user, defaultRole: 'rider' });
-                        }}
-                        className={`p-3 rounded-xl border text-left transition-all ${
-                          user.defaultRole === 'rider'
-                            ? 'bg-white/15 border-white/40 text-white'
-                            : 'bg-white/[0.02] border-white/10 text-white/60'
-                        }`}
-                      >
-                        <div className="font-bold text-xs text-white">Rider / Driver Mode</div>
-                        <div className="text-[11px] text-white/60">Offer lifts & earn fuel cost</div>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          onUpdateUser({ ...user, defaultRole: 'passenger' });
-                        }}
-                        className={`p-3 rounded-xl border text-left transition-all ${
-                          user.defaultRole === 'passenger'
-                            ? 'bg-white/15 border-white/40 text-white'
-                            : 'bg-white/[0.02] border-white/10 text-white/60'
-                        }`}
-                      >
-                        <div className="font-bold text-xs text-white">Passenger Mode</div>
-                        <div className="text-[11px] text-white/60">Find lifts & bargain fares</div>
-                      </button>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-white/70">Operating Role:</span>
+                      {user.isRoleLocked ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-300 font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30">
+                          <Lock className="w-3 h-3 text-amber-400" />
+                          <span>Role Locked (Cannot Switch)</span>
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-white/50">Unrestricted</span>
+                      )}
                     </div>
+
+                    {user.isRoleLocked ? (
+                      <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-white flex items-center gap-2">
+                            {user.defaultRole === 'rider' ? (
+                              <>
+                                <Car className="w-4 h-4 text-emerald-400" />
+                                <span>Verified Rider (Driver)</span>
+                              </>
+                            ) : (
+                              <>
+                                <User className="w-4 h-4 text-indigo-400" />
+                                <span>Verified User (Passenger)</span>
+                              </>
+                            )}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-black/40 text-amber-300 border border-amber-400/30">
+                            Locked
+                          </span>
+                        </div>
+                        <p className="text-xs text-white/70 leading-relaxed">
+                          {user.roleLockedReason ||
+                            'Riders and Passengers have distinct safety verification and cannot inter-switch roles.'}
+                        </p>
+                        <div className="pt-1 flex items-center justify-between text-[11px]">
+                          <span className="text-white/50">Need to operate as the other role?</span>
+                          {onOpenAuthModal && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onClose();
+                                onOpenAuthModal();
+                              }}
+                              className="text-amber-300 hover:text-amber-200 underline font-semibold cursor-pointer"
+                            >
+                              Register New Account
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => {
+                            onUpdateUser({ ...user, defaultRole: 'rider' });
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all ${
+                            user.defaultRole === 'rider'
+                              ? 'bg-white/15 border-white/40 text-white'
+                              : 'bg-white/[0.02] border-white/10 text-white/60'
+                          }`}
+                        >
+                          <div className="font-bold text-xs text-white">Rider / Driver Mode</div>
+                          <div className="text-[11px] text-white/60">Offer lifts & earn fuel cost</div>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            onUpdateUser({ ...user, defaultRole: 'passenger' });
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all ${
+                            user.defaultRole === 'passenger'
+                              ? 'bg-white/15 border-white/40 text-white'
+                              : 'bg-white/[0.02] border-white/10 text-white/60'
+                          }`}
+                        >
+                          <div className="font-bold text-xs text-white">Passenger Mode</div>
+                          <div className="text-[11px] text-white/60">Find lifts & bargain fares</div>
+                        </button>
+                      </div>
+                    )}
+
+                    {onOpenAuthModal && (
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onOpenAuthModal();
+                          }}
+                          className="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <span>Open Studio Login / Register Portal</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3 pt-2">

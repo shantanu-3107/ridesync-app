@@ -11,6 +11,8 @@ import { RouteMapModal } from './components/RouteMapModal';
 import { UserProfileDrawer } from './components/UserProfileDrawer';
 import { GoogleMapsLocationPickerModal } from './components/GoogleMapsLocationPickerModal';
 import { sendDataToEmail } from './services/notificationService';
+import AuthPage from './components/auth/AuthPage';
+import StudioFooter from './components/studio/StudioFooter';
 import { FadingVideo } from './components/FadingVideo';
 import { BlurText } from './components/BlurText';
 import { 
@@ -176,6 +178,8 @@ export default function App() {
   const [selectedRideForBargain, setSelectedRideForBargain] = useState<Ride | null>(null);
   const [isPostRideOpen, setIsPostRideOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isPureFooterOpen, setIsPureFooterOpen] = useState(false);
   const [mapModalRide, setMapModalRide] = useState<Ride | null>(null);
   const [searchMapPicker, setSearchMapPicker] = useState<'origin' | 'destination' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -184,6 +188,8 @@ export default function App() {
   const isAnyModalOpen =
     isPostRideOpen ||
     isProfileOpen ||
+    isAuthOpen ||
+    isPureFooterOpen ||
     selectedRideForBargain !== null ||
     mapModalRide !== null ||
     searchMapPicker !== null;
@@ -544,6 +550,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         onOpenPostRide={() => setIsPostRideOpen(true)}
         onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenAuth={() => setIsAuthOpen(true)}
         pendingOffersCount={pendingCount}
       />
 
@@ -1050,9 +1057,26 @@ export default function App() {
 
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-white mb-3">Legal & Community</h4>
-                <p className="text-[11px] text-white/50 leading-relaxed mb-3">
+                <p className="text-[11px] text-white/50 leading-relaxed mb-2">
                   RidePartner facilitates non-commercial carpooling and bikepooling between companions traveling on identical routes to reduce city congestion and carbon footprint.
                 </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAuthOpen(true)}
+                    className="text-[11px] text-amber-300 hover:text-amber-200 underline font-semibold cursor-pointer"
+                  >
+                    Rider / User Login & Register
+                  </button>
+                  <span className="text-white/30">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsPureFooterOpen(true)}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-semibold cursor-pointer"
+                  >
+                    Studio Template Footer (Eye Gaze)
+                  </button>
+                </div>
                 <div className="text-[11px] text-white/40">
                   © 2026 RidePartner Inc. All rights reserved.
                 </div>
@@ -1125,7 +1149,46 @@ export default function App() {
           showToast(`Theme switched to ${newTheme.replace('-', ' ')}!`);
         }}
         onResetData={handleResetData}
+        onOpenAuthModal={() => setIsAuthOpen(true)}
       />
+
+      {/* Studio Auth Page (Login / Register with template aesthetic & interactive eye-gaze video) */}
+      {isAuthOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <AuthPage
+            onLoginSuccess={(authenticatedUser) => {
+              setUser(authenticatedUser);
+              setIsAuthOpen(false);
+              showToast(
+                `Signed in as Verified ${
+                  authenticatedUser.defaultRole === 'rider' ? 'Rider (Driver)' : 'Passenger (User)'
+                }! Role locked.`
+              );
+            }}
+            onCancel={() => setIsAuthOpen(false)}
+            onOpenPureFooter={() => {
+              setIsAuthOpen(false);
+              setIsPureFooterOpen(true);
+            }}
+            initialRole={user.defaultRole}
+          />
+        </div>
+      )}
+
+      {/* Pure Single-Page Creative Studio Footer View */}
+      {isPureFooterOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-[#dfe4f2]">
+          <div className="fixed top-4 left-4 z-60 pointer-events-auto">
+            <button
+              onClick={() => setIsPureFooterOpen(false)}
+              className="px-4 py-2 rounded-full bg-white text-[#080909] font-['DM_Sans',sans-serif] font-bold text-xs shadow-xl hover:bg-white/90 flex items-center gap-1.5 cursor-pointer border border-[#080909]/10"
+            >
+              <span>← Back to RidePartner</span>
+            </button>
+          </div>
+          <StudioFooter />
+        </div>
+      )}
     </div>
   );
 }

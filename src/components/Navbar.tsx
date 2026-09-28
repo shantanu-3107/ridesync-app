@@ -8,6 +8,7 @@ interface NavbarProps {
   onOpenPostRide: () => void;
   onOpenProfile: () => void;
   pendingOffersCount: number;
+  onOpenAuth?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -16,6 +17,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenPostRide,
   onOpenProfile,
   pendingOffersCount,
+  onOpenAuth,
 }) => {
   return (
     <>
@@ -81,8 +83,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </div>
 
-        {/* Right CTA Button: Offer a Lift */}
+        {/* Right CTA Buttons */}
         <div className="pointer-events-auto flex items-center gap-2">
+          {onOpenAuth && (
+            <button
+              onClick={onOpenAuth}
+              className="liquid-glass rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 flex items-center gap-1.5 text-xs sm:text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 transition-all cursor-pointer shadow-lg"
+              title="Sign In or Register with Studio template"
+            >
+              <User className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Sign In / Register</span>
+              <span className="sm:hidden">Login</span>
+            </button>
+          )}
+
           <button
             onClick={onOpenPostRide}
             className="liquid-glass-strong rounded-full px-3.5 sm:px-5 py-2 sm:py-2.5 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-white hover:bg-white/10 transition-all cursor-pointer group shadow-lg"
