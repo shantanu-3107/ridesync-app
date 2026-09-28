@@ -17,6 +17,14 @@ interface RouteMapModalProps {
 }
 
 export const RouteMapModal: React.FC<RouteMapModalProps> = ({ ride, onClose }) => {
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   if (!ride) return null;
 
   // Format Google Maps Direction URL

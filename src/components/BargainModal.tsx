@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Ride, RideRequest } from '../types/ride';
+import React, { useState, useEffect } from 'react';
+import { Ride, RideRequest, UserProfile } from '../types/ride';
 import { 
   X, 
   MapPin, 
@@ -13,14 +13,24 @@ interface BargainModalProps {
   ride: Ride | null;
   onClose: () => void;
   onSubmitRequest: (request: Omit<RideRequest, 'id' | 'createdAt' | 'history'>) => void;
+  user: UserProfile;
 }
 
 export const BargainModal: React.FC<BargainModalProps> = ({
   ride,
   onClose,
   onSubmitRequest,
+  user,
 }) => {
   if (!ride) return null;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // Drop-off selection
   const [dropoffType, setDropoffType] = useState<'destination' | 'intermediate' | 'custom'>('destination');
@@ -58,9 +68,9 @@ export const BargainModal: React.FC<BargainModalProps> = ({
 
     onSubmitRequest({
       rideId: ride.id,
-      passengerName: 'You (Passenger)',
-      passengerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      passengerRating: 5.0,
+      passengerName: user.name || 'You (Passenger)',
+      passengerAvatar: user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      passengerRating: user.rating || 5.0,
       pickupLocation: pickupNote || ride.origin,
       requestedDropoff: finalDropoff,
       isCustomDropoff: isCustomDrop,

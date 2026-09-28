@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { UserProfile, PastRide, AppTheme } from '../types/ride';
+import React, { useState, useEffect } from 'react';
+import { UserProfile, PastRide, AppTheme, Ride, RideRequest } from '../types/ride';
+import { sendDataToEmail, exportToCSV, exportToJSON } from '../services/notificationService';
 import { 
   X, 
   User, 
@@ -14,7 +15,16 @@ import {
   Camera,
   Upload,
   Check,
-  ImageIcon
+  ImageIcon,
+  RotateCcw,
+  Download,
+  Mail,
+  FileSpreadsheet,
+  Database,
+  Send,
+  Loader2,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 
 const AVATAR_PRESETS = [
@@ -34,8 +44,11 @@ interface UserProfileDrawerProps {
   user: UserProfile;
   onUpdateUser: (updated: UserProfile) => void;
   pastRides: PastRide[];
+  rides: Ride[];
+  requests: RideRequest[];
   currentTheme: AppTheme;
   onSelectTheme: (theme: AppTheme) => void;
+  onResetData?: () => void;
 }
 
 export const UserProfileDrawer: React.FC<UserProfileDrawerProps> = ({
@@ -44,12 +57,83 @@ export const UserProfileDrawer: React.FC<UserProfileDrawerProps> = ({
   user,
   onUpdateUser,
   pastRides,
+  rides,
+  requests,
   currentTheme,
   onSelectTheme,
+  onResetData,
 }) => {
   if (!isOpen) return null;
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'signin' | 'theme' | 'history' | 'income'>('profile');
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const [activeTab, setActiveTab] = useState<'profile' | 'signin' | 'theme' | 'history' | 'income' | 'data'>('profile');
+
+  // Admin Data Collection & Notification State
+  const [adminEmail, setAdminEmail] = useState(() => {
+    return localStorage.getItem('ridepartner_admin_email') || 'shantanumohature@gmail.com';
+  });
+  const [emailSaveSuccess, setEmailSaveSuccess] = useState(false);
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState<{ success: boolean; message: string } | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+
+  const handleSaveAdminEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminEmail || !adminEmail.includes('@')) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+    localStorage.setItem('ridepartner_admin_email', adminEmail.trim());
+    setEmailSaveSuccess(true);
+    setTimeout(() => setEmailSaveSuccess(false), 3000);
+  };
+
+  const handleSendTestNotification = async () => {
+    setIsSendingTestEmail(true);
+    setTestEmailStatus(null);
+    try {
+      const res = await sendDataToEmail({
+        eventType: 'TEST_NOTIFICATION',
+        title: 'RidePartner Data Forwarding Active',
+        recipientEmail: adminEmail,
+        data: {
+          status: 'Email sync active & functioning',
+          connectedEmail: adminEmail,
+          liveActiveRidesCount: rides.length,
+          activeCompanionRequestsCount: requests.length,
+          completedTripsCount: pastRides.length,
+          sentFrom: window.location.origin,
+          message: 'All incoming lifts, requests, and fare bargains will be dispatched to this inbox!',
+        },
+      });
+      setTestEmailStatus(res);
+    } catch (err: any) {
+      setTestEmailStatus({ success: false, message: err?.message || 'Failed to dispatch test email.' });
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
+  const handleDownloadCSV = () => {
+    exportToCSV(rides, requests);
+    setExportNotice('Exported CSV file downloaded to your device!');
+    setTimeout(() => setExportNotice(null), 4000);
+  };
+
+  const handleDownloadJSON = () => {
+    exportToJSON({ user, rides, requests, pastRides });
+    setExportNotice('Full JSON backup downloaded to your device!');
+    setTimeout(() => setExportNotice(null), 4000);
+  };
 
   // Form states for profile edit
   const [name, setName] = useState(user.name);
@@ -216,6 +300,18 @@ export const UserProfileDrawer: React.FC<UserProfileDrawerProps> = ({
           >
             <Wallet className="w-3.5 h-3.5" />
             <span>Total Income</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('data')}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap ${
+              activeTab === 'data'
+                ? 'bg-white text-black font-semibold shadow'
+                : 'text-white/70 hover:text-white'
+            }`}
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Data & Email</span>
           </button>
         </div>
 
@@ -475,6 +571,35 @@ export const UserProfileDrawer: React.FC<UserProfileDrawerProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Data & Storage Management */}
+              <div className="p-4 rounded-xl liquid-glass border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">
+                      Local Data & Session Storage
+                    </h4>
+                    <p className="text-[11px] text-white/50 mt-0.5">
+                      Your rides, profile changes, and bargain chats are securely stored in your browser.
+                    </p>
+                  </div>
+
+                  {onResetData && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to reset all local rides, messages, and restore clean defaults?')) {
+                          onResetData();
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 text-xs font-medium transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reset to Clean State</span>
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -595,6 +720,213 @@ export const UserProfileDrawer: React.FC<UserProfileDrawerProps> = ({
                       </div>
                     ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: DATA EXPORT & EMAIL NOTIFICATIONS */}
+          {activeTab === 'data' && (
+            <div className="space-y-4">
+              {/* Notice Banner */}
+              {exportNotice && (
+                <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>{exportNotice}</span>
+                </div>
+              )}
+
+              {/* SECTION 1: INSTANT EMAIL ALERTS */}
+              <div className="p-4 sm:p-5 rounded-2xl liquid-glass border border-white/10 space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading italic text-base text-white">Live Email Notifications</h3>
+                    <p className="text-[11px] text-white/60">
+                      Receive real-time alerts whenever a lift is posted, companion requests join, or fare bargains are sent.
+                    </p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSaveAdminEmail} className="space-y-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-white/70 block mb-1">
+                      Recipient / Admin Email Address
+                    </label>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <div className="relative flex-1">
+                        <Mail className="w-4 h-4 text-white/40 absolute left-3 top-3" />
+                        <input
+                          type="email"
+                          required
+                          value={adminEmail}
+                          onChange={(e) => setAdminEmail(e.target.value)}
+                          placeholder="yourname@gmail.com"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-black/60 border border-white/20 text-xs text-white placeholder-white/40 focus:outline-none focus:border-white"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-xl bg-white text-black font-bold text-xs hover:bg-white/90 shadow transition-colors shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        {emailSaveSuccess ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Saved!</span>
+                          </>
+                        ) : (
+                          <span>Save Email</span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1 border-t border-white/10 text-xs">
+                    <p className="text-[11px] text-white/50 leading-relaxed max-w-sm">
+                      ✨ Powered by FormSubmit. <em>(Note: Your first notification requires clicking a 1-time activation confirmation in your email inbox)</em>.
+                    </p>
+
+                    <button
+                      type="button"
+                      disabled={isSendingTestEmail}
+                      onClick={handleSendTestNotification}
+                      className="px-3.5 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSendingTestEmail ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Sending Test...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Send Test Email Alert</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {testEmailStatus && (
+                    <div
+                      className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                        testEmailStatus.success
+                          ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-300'
+                          : 'bg-rose-500/20 border border-rose-500/30 text-rose-300'
+                      }`}
+                    >
+                      {testEmailStatus.success ? (
+                        <CheckCircle className="w-4 h-4 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                      )}
+                      <div>
+                        <strong>{testEmailStatus.success ? 'Success: ' : 'Notice: '}</strong>
+                        <span>{testEmailStatus.message}</span>
+                        {testEmailStatus.success && (
+                          <div className="text-[10px] text-emerald-300/80 mt-0.5">
+                            Please check your inbox at <span className="font-mono underline">{adminEmail}</span> (and Spam folder if first time).
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </form>
+              </div>
+
+              {/* SECTION 2: EXPORT DATA TO LOCAL DEVICE */}
+              <div className="p-4 sm:p-5 rounded-2xl liquid-glass border border-white/10 space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading italic text-base text-white">Save Data to Local Device</h3>
+                    <p className="text-[11px] text-white/60">
+                      Download full data records into Excel/Sheets (.CSV) or JSON format directly onto your computer or phone.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Counters */}
+                <div className="grid grid-cols-3 gap-2 text-center py-1">
+                  <div className="p-2 rounded-xl bg-white/[0.04] border border-white/10">
+                    <div className="text-lg font-heading italic text-white">{rides.length}</div>
+                    <div className="text-[10px] text-white/60">Active Lifts</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white/[0.04] border border-white/10">
+                    <div className="text-lg font-heading italic text-white">{requests.length}</div>
+                    <div className="text-[10px] text-white/60">Companion Requests</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white/[0.04] border border-white/10">
+                    <div className="text-lg font-heading italic text-white">{pastRides.length}</div>
+                    <div className="text-[10px] text-white/60">Past Rides</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* CSV Export Button */}
+                  <button
+                    type="button"
+                    onClick={handleDownloadCSV}
+                    className="p-3.5 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 text-left transition-all group flex items-start gap-3 cursor-pointer"
+                  >
+                    <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 group-hover:scale-105 transition-transform">
+                      <FileSpreadsheet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-xs text-white group-hover:text-emerald-300 transition-colors">
+                        Download Spreadsheet (.CSV)
+                      </div>
+                      <div className="text-[11px] text-white/60 mt-0.5 leading-snug">
+                        Formatted tabular rows of all rides, routes, companion offers, fares, and timestamps.
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* JSON Backup Button */}
+                  <button
+                    type="button"
+                    onClick={handleDownloadJSON}
+                    className="p-3.5 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 text-left transition-all group flex items-start gap-3 cursor-pointer"
+                  >
+                    <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400 group-hover:scale-105 transition-transform">
+                      <Database className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-xs text-white group-hover:text-indigo-300 transition-colors">
+                        Download Full Backup (.JSON)
+                      </div>
+                      <div className="text-[11px] text-white/60 mt-0.5 leading-snug">
+                        Complete raw application state including user profile, active negotiations, and past rides.
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* SECTION 3: STORAGE STATUS & FACTORY RESET */}
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-bold text-white block">Local Storage Status</span>
+                  <span className="text-[11px] text-white/50">
+                    All user actions are cached in your browser storage and persist across page refreshes.
+                  </span>
+                </div>
+                {onResetData && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Reset all saved lifts, requests, and profile data to defaults?')) {
+                        onResetData();
+                      }
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 text-[11px] font-medium transition-colors cursor-pointer shrink-0"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Clear Data</span>
+                  </button>
+                )}
               </div>
             </div>
           )}

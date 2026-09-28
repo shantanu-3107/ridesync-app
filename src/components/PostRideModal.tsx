@@ -56,6 +56,20 @@ export const PostRideModal: React.FC<PostRideModalProps> = ({
     'origin' | 'destination' | { stopIndex: number } | null
   >(null);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (mapPickerTarget !== null) {
+          setMapPickerTarget(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, mapPickerTarget]);
+
   const getPickerTitle = () => {
     if (mapPickerTarget === 'origin') return 'Select Place A (Starting Point) on Google Maps';
     if (mapPickerTarget === 'destination') return 'Select Place B (Final Destination) on Google Maps';

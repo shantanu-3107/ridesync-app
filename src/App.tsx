@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Ride, RideRequest, UserProfile, PastRide, AppTheme } from './types/ride';
 import { initialRides, initialRequests } from './data/mockRides';
@@ -10,6 +10,7 @@ import { NegotiationsPanel } from './components/NegotiationsPanel';
 import { RouteMapModal } from './components/RouteMapModal';
 import { UserProfileDrawer } from './components/UserProfileDrawer';
 import { GoogleMapsLocationPickerModal } from './components/GoogleMapsLocationPickerModal';
+import { sendDataToEmail } from './services/notificationService';
 import { FadingVideo } from './components/FadingVideo';
 import { BlurText } from './components/BlurText';
 import { 
@@ -29,7 +30,8 @@ import {
   PlusCircle, 
   CheckCircle2,
   ChevronDown,
-  Compass
+  Compass,
+  Zap
 } from 'lucide-react';
 
 const fadeInUp = (delay: number) => ({
@@ -37,6 +39,22 @@ const fadeInUp = (delay: number) => ({
   animate: { filter: 'blur(0px)', opacity: 1, y: 0 },
   transition: { duration: 0.8, delay, ease: 'easeOut' },
 });
+
+// Safe LocalStorage helpers
+function getStorageItem<T>(key: string, fallback: T): T {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function setStorageItem<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
 
 const defaultUser: UserProfile = {
   name: 'Aarav Sharma',
@@ -108,14 +126,45 @@ const defaultPastRides: PastRide[] = [
 ];
 
 export default function App() {
-  const [rides, setRides] = useState<Ride[]>(initialRides);
-  const [requests, setRequests] = useState<RideRequest[]>(initialRequests);
+  const [rides, setRides] = useState<Ride[]>(() =>
+    getStorageItem('ridepartner_rides', initialRides)
+  );
+  const [requests, setRequests] = useState<RideRequest[]>(() =>
+    getStorageItem('ridepartner_requests', initialRequests)
+  );
   const [activeTab, setActiveTab] = useState<'browse' | 'negotiations'>('browse');
 
   // Account, Past Rides, and Theme state
-  const [user, setUser] = useState<UserProfile>(defaultUser);
-  const [pastRides, setPastRides] = useState<PastRide[]>(defaultPastRides);
-  const [theme, setTheme] = useState<AppTheme>('cinematic-black');
+  const [user, setUser] = useState<UserProfile>(() =>
+    getStorageItem('ridepartner_user', defaultUser)
+  );
+  const [pastRides, setPastRides] = useState<PastRide[]>(() =>
+    getStorageItem('ridepartner_past_rides', defaultPastRides)
+  );
+  const [theme, setTheme] = useState<AppTheme>(() =>
+    getStorageItem('ridepartner_theme', 'cinematic-black')
+  );
+
+  // Sync to local storage
+  useEffect(() => {
+    setStorageItem('ridepartner_rides', rides);
+  }, [rides]);
+
+  useEffect(() => {
+    setStorageItem('ridepartner_requests', requests);
+  }, [requests]);
+
+  useEffect(() => {
+    setStorageItem('ridepartner_user', user);
+  }, [user]);
+
+  useEffect(() => {
+    setStorageItem('ridepartner_past_rides', pastRides);
+  }, [pastRides]);
+
+  useEffect(() => {
+    setStorageItem('ridepartner_theme', theme);
+  }, [theme]);
 
   // Search & Filter State
   const [searchOrigin, setSearchOrigin] = useState('');
@@ -131,9 +180,71 @@ export default function App() {
   const [searchMapPicker, setSearchMapPicker] = useState<'origin' | 'destination' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Lock body scroll when any modal is open
+  const isAnyModalOpen =
+    isPostRideOpen ||
+    isProfileOpen ||
+    selectedRideForBargain !== null ||
+    mapModalRide !== null ||
+    searchMapPicker !== null;
+
+  useEffect(() => {
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isAnyModalOpen]);
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleResetData = () => {
+    localStorage.removeItem('ridepartner_rides');
+    localStorage.removeItem('ridepartner_requests');
+    localStorage.removeItem('ridepartner_user');
+    localStorage.removeItem('ridepartner_past_rides');
+    localStorage.removeItem('ridepartner_theme');
+    setRides(initialRides);
+    setRequests(initialRequests);
+    setUser(defaultUser);
+    setPastRides(defaultPastRides);
+    setTheme('cinematic-black');
+    setIsProfileOpen(false);
+    showToast('All local data cleared and reset to defaults!');
+  };
+
+  const handleSeedDemoRide = () => {
+    const demoRide: Ride = {
+      id: `demo-${Date.now()}`,
+      driver: {
+        name: 'Devansh Roy',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+        rating: 4.9,
+        totalTrips: 38,
+      },
+      origin: 'Koramangala 5th Block, Bangalore',
+      destination: 'Kempegowda International Airport (BLR)',
+      intermediateStops: ['Indiranagar Metro', 'Hebbal Flyover', 'Yelahanka Bypass'],
+      date: 'Today',
+      departureTime: '06:30 PM',
+      vehicleType: 'car',
+      vehicleModel: 'Tata Nexon EV (AC)',
+      vehicleNumberPlate: 'KA 03 MX 9021',
+      vehicleImage: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=400&auto=format&fit=crop&q=80',
+      seatsAvailable: 3,
+      totalSeats: 3,
+      fare: 280,
+      pricingModel: 'negotiable',
+      notes: 'Heading to airport terminal after office. Clean AC ride, boot space for 2 bags. Helmets not needed for car.',
+    };
+    setRides([demoRide, ...rides]);
+    showToast('Sample airport corridor lift loaded!');
   };
 
   // Filter rides based on search criteria
@@ -161,6 +272,10 @@ export default function App() {
     });
   }, [rides, searchOrigin, searchDestination, vehicleFilter, bargainOnly]);
 
+  const getAdminEmail = () => {
+    return localStorage.getItem('ridepartner_admin_email') || 'shantanumohature@gmail.com';
+  };
+
   // Request & Negotiation Handlers
   const handleCreateRequest = (
     newReqData: Omit<RideRequest, 'id' | 'createdAt' | 'history'>
@@ -182,6 +297,26 @@ export default function App() {
     setRequests([newRequest, ...requests]);
     showToast(`Your ride offer of ₹${newReqData.offeredFare} was sent!`);
     setActiveTab('negotiations');
+
+    const relatedRide = rides.find((r) => r.id === newReqData.rideId);
+
+    // Auto dispatch email notification to user's specified inbox
+    sendDataToEmail({
+      eventType: 'NEW_RIDE_REQUEST',
+      title: `New Companion Request: ₹${newReqData.offeredFare} for ${newReqData.requestedDropoff}`,
+      recipientEmail: getAdminEmail(),
+      data: {
+        requestId: newRequest.id,
+        passengerName: newReqData.passengerName,
+        pickupPoint: newReqData.pickupLocation,
+        requestedDropoff: newReqData.requestedDropoff,
+        isCustomDropoff: newReqData.isCustomDropoff ? 'Yes (En-route custom spot)' : 'No (Direct drop)',
+        offeredFare: `₹${newReqData.offeredFare} (Original: ₹${newReqData.originalFare})`,
+        message: newReqData.message || 'No extra note provided',
+        relatedRideRoute: relatedRide ? `${relatedRide.origin} ➔ ${relatedRide.destination}` : 'Unknown Route',
+        driverName: relatedRide ? relatedRide.driver.name : 'Unknown Driver',
+      },
+    }).catch((err) => console.error('Failed to dispatch request notification:', err));
   };
 
   const handlePostRide = (newRide: Ride) => {
@@ -190,6 +325,26 @@ export default function App() {
     setActiveTab('browse');
     const el = document.getElementById('rides-feed');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
+
+    // Auto dispatch email notification to user's specified inbox
+    sendDataToEmail({
+      eventType: 'NEW_RIDE_OFFERED',
+      title: `New Lift Offered: ${newRide.origin} ➔ ${newRide.destination} (₹${newRide.fare})`,
+      recipientEmail: getAdminEmail(),
+      data: {
+        rideId: newRide.id,
+        driver: newRide.driver.name,
+        driverPhone: newRide.driver.phone || 'N/A',
+        origin: newRide.origin,
+        destination: newRide.destination,
+        intermediateStops: (newRide.intermediateStops || []).join(' | ') || 'Direct non-stop',
+        departureSchedule: `${newRide.date} at ${newRide.departureTime}`,
+        vehicle: `${newRide.vehicleType.toUpperCase()} - ${newRide.vehicleModel} (${newRide.vehicleNumberPlate || 'N/A'})`,
+        fare: `₹${newRide.fare} (${newRide.pricingModel})`,
+        seatsAvailable: `${newRide.seatsAvailable} of ${newRide.totalSeats}`,
+        notes: newRide.notes || 'None',
+      },
+    }).catch((err) => console.error('Failed to dispatch ride notification:', err));
   };
 
   const handleAcceptRequest = (requestId: string) => {
@@ -218,6 +373,7 @@ export default function App() {
 
     // If accepted, add to past rides & income log
     if (targetReq && relatedRide) {
+      const finalFare = targetReq.counterOfferFare || targetReq.offeredFare;
       const newPastRide: PastRide = {
         id: `past-${Date.now()}`,
         role: 'rider',
@@ -227,10 +383,27 @@ export default function App() {
         vehicleType: relatedRide.vehicleType,
         vehicleModel: relatedRide.vehicleModel,
         companionName: targetReq.passengerName,
-        fare: targetReq.counterOfferFare || targetReq.offeredFare,
+        fare: finalFare,
         status: 'completed',
       };
       setPastRides([newPastRide, ...pastRides]);
+
+      // Auto dispatch email notification
+      sendDataToEmail({
+        eventType: 'RIDE_ACCEPTED',
+        title: `Lift Accepted & Confirmed: ${targetReq.passengerName} (₹${finalFare})`,
+        recipientEmail: getAdminEmail(),
+        data: {
+          requestId,
+          passengerName: targetReq.passengerName,
+          driverName: relatedRide.driver.name,
+          driverContact: relatedRide.driver.phone || 'N/A',
+          pickupPoint: targetReq.pickupLocation,
+          dropoffPoint: targetReq.requestedDropoff,
+          confirmedFare: `₹${finalFare}`,
+          status: 'Confirmed & Seat Reserved',
+        },
+      }).catch((err) => console.error('Failed to dispatch accept notification:', err));
     }
 
     showToast('Accepted companion request! Seat locked & income updated.');
@@ -260,6 +433,7 @@ export default function App() {
   };
 
   const handleCounterOffer = (requestId: string, amount: number, note: string) => {
+    const targetReq = requests.find((r) => r.id === requestId);
     setRequests((prev) =>
       prev.map((req) => {
         if (req.id === requestId) {
@@ -282,9 +456,23 @@ export default function App() {
       })
     );
     showToast(`Counter-offer of ₹${amount} sent to companion.`);
+
+    // Auto dispatch email notification
+    sendDataToEmail({
+      eventType: 'COUNTER_OFFER',
+      title: `Fare Counter-Offer Sent: ₹${amount} for Request #${requestId}`,
+      recipientEmail: getAdminEmail(),
+      data: {
+        requestId,
+        passengerName: targetReq ? targetReq.passengerName : 'N/A',
+        counterOfferFare: `₹${amount}`,
+        note: note || 'None provided',
+      },
+    }).catch((err) => console.error('Failed to dispatch counter notification:', err));
   };
 
   const handlePassengerAcceptCounter = (requestId: string) => {
+    const targetReq = requests.find((r) => r.id === requestId);
     setRequests((prev) =>
       prev.map((req) => {
         if (req.id === requestId) {
@@ -306,6 +494,20 @@ export default function App() {
       })
     );
     showToast('Agreed to counter-offer! Ride confirmed.');
+
+    if (targetReq) {
+      sendDataToEmail({
+        eventType: 'RIDE_ACCEPTED',
+        title: `Passenger Accepted Counter-Offer: ₹${targetReq.counterOfferFare} for Request #${requestId}`,
+        recipientEmail: getAdminEmail(),
+        data: {
+          requestId,
+          passengerName: targetReq.passengerName,
+          agreedFare: `₹${targetReq.counterOfferFare}`,
+          status: 'Confirmed by Passenger',
+        },
+      }).catch((err) => console.error('Failed to dispatch counter accept notification:', err));
+    }
   };
 
   const pendingCount = requests.filter(
@@ -764,21 +966,34 @@ export default function App() {
                     ? 'Start the companion pool! Post your route from Place A to Place B, set your bike or car, and let companions join your journey.'
                     : 'Try resetting your search query or filters to see all available companion lifts.'}
                 </p>
-                <button
-                  onClick={() => {
-                    if (rides.length === 0) {
-                      setIsPostRideOpen(true);
-                    } else {
-                      setSearchOrigin('');
-                      setSearchDestination('');
-                      setVehicleFilter('all');
-                      setBargainOnly(false);
-                    }
-                  }}
-                  className="px-6 py-2.5 rounded-full bg-white text-black font-bold text-xs hover:bg-white/90 cursor-pointer shadow-lg active:scale-95 transition-all"
-                >
-                  {rides.length === 0 ? 'Offer a Lift as Rider' : 'Reset Search Filters'}
-                </button>
+
+                <div className="flex items-center justify-center gap-3 flex-wrap">
+                  <button
+                    onClick={() => {
+                      if (rides.length === 0) {
+                        setIsPostRideOpen(true);
+                      } else {
+                        setSearchOrigin('');
+                        setSearchDestination('');
+                        setVehicleFilter('all');
+                        setBargainOnly(false);
+                      }
+                    }}
+                    className="px-6 py-2.5 rounded-full bg-white text-black font-bold text-xs hover:bg-white/90 cursor-pointer shadow-lg active:scale-95 transition-all"
+                  >
+                    {rides.length === 0 ? 'Offer a Lift as Rider' : 'Reset Search Filters'}
+                  </button>
+
+                  {rides.length === 0 && (
+                    <button
+                      onClick={handleSeedDemoRide}
+                      className="flex items-center gap-1.5 px-5 py-2.5 rounded-full liquid-glass border border-white/20 text-emerald-400 hover:text-white hover:bg-white/10 text-xs font-semibold cursor-pointer transition-all shadow-md"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Load Demo Corridor</span>
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -793,6 +1008,57 @@ export default function App() {
               </div>
             )}
           </section>
+
+          {/* ========================================================================= */}
+          {/* SECTION 4: PUBLISH-READY FOOTER & TRUST/SAFETY                            */}
+          {/* ========================================================================= */}
+          <footer className="border-t border-white/10 mt-20 pt-16 pb-24 md:pb-12 px-6 sm:px-12 lg:px-16 max-w-7xl mx-auto w-full text-white/80 font-body">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
+              <div className="md:col-span-1 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-9 w-9 rounded-full liquid-glass flex items-center justify-center font-heading italic text-xl text-white">r</span>
+                  <span className="font-heading italic text-2xl text-white">RidePartner</span>
+                </div>
+                <p className="text-xs text-white/60 leading-relaxed">
+                  Community-driven companion ride sharing. Connect with daily commuters, travel with verified companions, and share fuel costs seamlessly.
+                </p>
+                <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Verified Peer Network • Zero Platform Fees</span>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-white mb-3">Community Travel</h4>
+                <ul className="space-y-2 text-xs text-white/60">
+                  <li><button onClick={scrollToRides} className="hover:text-white transition-colors cursor-pointer">Explore City Corridors</button></li>
+                  <li><button onClick={() => setIsPostRideOpen(true)} className="hover:text-white transition-colors cursor-pointer">Offer Bike / Car Lift</button></li>
+                  <li><button onClick={() => setActiveTab('negotiations')} className="hover:text-white transition-colors cursor-pointer">Fair Fare Bargaining</button></li>
+                  <li><button onClick={() => setIsProfileOpen(true)} className="hover:text-white transition-colors cursor-pointer">Earnings & Income Calculator</button></li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-white mb-3">Safety & Trust</h4>
+                <ul className="space-y-2 text-xs text-white/60">
+                  <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Govt ID Verification</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Driving License Verification</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> On-Route Waypoints</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Real-time Google Maps Navigation</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-white mb-3">Legal & Community</h4>
+                <p className="text-[11px] text-white/50 leading-relaxed mb-3">
+                  RidePartner facilitates non-commercial carpooling and bikepooling between companions traveling on identical routes to reduce city congestion and carbon footprint.
+                </p>
+                <div className="text-[11px] text-white/40">
+                  © 2026 RidePartner Inc. All rights reserved.
+                </div>
+              </div>
+            </div>
+          </footer>
         </>
       )}
 
@@ -801,6 +1067,7 @@ export default function App() {
         ride={selectedRideForBargain}
         onClose={() => setSelectedRideForBargain(null)}
         onSubmitRequest={handleCreateRequest}
+        user={user}
       />
 
       {/* Rider Post Lift Modal */}
@@ -850,11 +1117,14 @@ export default function App() {
           showToast('Profile updated!');
         }}
         pastRides={pastRides}
+        rides={rides}
+        requests={requests}
         currentTheme={theme}
         onSelectTheme={(newTheme) => {
           setTheme(newTheme);
           showToast(`Theme switched to ${newTheme.replace('-', ' ')}!`);
         }}
+        onResetData={handleResetData}
       />
     </div>
   );

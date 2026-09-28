@@ -87,6 +87,8 @@ export function FadingVideo({ src, className, style }: FadingVideoProps) {
     }
   };
 
+  const [hasError, setHasError] = useState(false);
+
   useEffect(() => {
     return () => {
       if (rafId.current) cancelAnimationFrame(rafId.current);
@@ -94,22 +96,40 @@ export function FadingVideo({ src, className, style }: FadingVideoProps) {
   }, []);
 
   return (
-    <video
-      ref={videoRef}
-      key={currentSrc}
-      src={currentSrc}
-      autoPlay
-      muted
-      playsInline
-      preload="auto"
-      onLoadedData={handleLoadedData}
-      onTimeUpdate={handleTimeUpdate}
-      onEnded={handleEnded}
-      className={className}
-      style={{
-        ...style,
-        opacity,
-      }}
-    />
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* Ambient glowing backdrop gradient for smooth loading & offline fallback */}
+      <div 
+        className="absolute inset-0 bg-gradient-to-b from-black via-[#081210] to-black opacity-90"
+        style={{
+          backgroundImage: `
+            radial-gradient(circle at 50% 20%, rgba(16, 185, 129, 0.12) 0%, transparent 60%),
+            radial-gradient(circle at 80% 60%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+            radial-gradient(circle at 20% 70%, rgba(245, 158, 11, 0.06) 0%, transparent 50%)
+          `
+        }}
+      />
+
+      {!hasError && (
+        <video
+          ref={videoRef}
+          key={currentSrc}
+          src={currentSrc}
+          autoPlay
+          muted
+          playsInline
+          preload="auto"
+          onLoadedData={handleLoadedData}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleEnded}
+          onError={() => setHasError(true)}
+          className={className}
+          style={{
+            ...style,
+            opacity,
+            transition: 'opacity 0.6s ease',
+          }}
+        />
+      )}
+    </div>
   );
 }
